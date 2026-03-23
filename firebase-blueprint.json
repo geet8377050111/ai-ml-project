@@ -1,0 +1,106 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user and admin profile information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "format": "email", "description": "User's email" },
+        "phoneNumber": { "type": "string", "description": "User's mobile number" },
+        "role": { "type": "string", "enum": ["customer", "provider", "admin"], "description": "User's role" },
+        "location": { "type": "object", "properties": { "lat": { "type": "number" }, "lng": { "type": "number" }, "address": { "type": "string" } } },
+        "servicesNeeded": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation date" }
+      },
+      "required": ["uid", "role"]
+    },
+    "ServiceProvider": {
+      "title": "Service Provider Profile",
+      "description": "Detailed information about service providers.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Link to User UID" },
+        "name": { "type": "string", "description": "Provider's name" },
+        "category": { "type": "string", "description": "Primary service category" },
+        "categories": { "type": "array", "items": { "type": "string" }, "description": "All service categories provided" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "experienceLevel": { "type": "string", "enum": ["Junior", "Intermediate", "Senior", "Expert"] },
+        "certifications": { "type": "array", "items": { "type": "string" } },
+        "pricePerHour": { "type": "number", "description": "Hourly rate" },
+        "rating": { "type": "number", "description": "Average rating" },
+        "location": { "type": "object", "properties": { "lat": { "type": "number" }, "lng": { "type": "number" } } },
+        "serviceAreaRadius": { "type": "number", "description": "Service area in km" },
+        "availability": { "type": "boolean", "description": "Is currently available?" },
+        "description": { "type": "string", "description": "Brief bio" },
+        "responseTime": { "type": "number", "description": "Average response time in minutes" },
+        "completionRate": { "type": "number", "description": "Percentage of completed bookings" },
+        "isVerified": { "type": "boolean", "description": "Is the provider verified?" },
+        "fraudScore": { "type": "number", "description": "AI-calculated fraud risk score (0-100)" }
+      },
+      "required": ["uid", "name", "category", "pricePerHour"]
+    },
+    "Booking": {
+      "title": "Service Booking",
+      "description": "Stores booking details between users and providers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Booking ID" },
+        "customerId": { "type": "string", "description": "UID of the customer" },
+        "customerName": { "type": "string", "description": "Name of the customer" },
+        "customerPhone": { "type": "string", "description": "Phone number of the customer" },
+        "providerId": { "type": "string", "description": "UID of the provider" },
+        "providerName": { "type": "string", "description": "Name of the provider" },
+        "providerPhone": { "type": "string", "description": "Phone number of the provider" },
+        "category": { "type": "string", "description": "Service category" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled"], "description": "Booking status" },
+        "startTime": { "type": "string", "format": "date-time", "description": "Scheduled start time" },
+        "endTime": { "type": "string", "format": "date-time", "description": "Scheduled end time" },
+        "totalPrice": { "type": "number", "description": "Total price" },
+        "routeInfo": { "type": "object", "description": "AI-optimized route information" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the booking was made" }
+      },
+      "required": ["customerId", "providerId", "status", "startTime"]
+    },
+    "Review": {
+      "title": "Provider Review",
+      "description": "User reviews for service providers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Review ID" },
+        "userId": { "type": "string", "description": "UID of the reviewer" },
+        "userName": { "type": "string", "description": "Name of the reviewer" },
+        "providerId": { "type": "string", "description": "ID of the provider being reviewed" },
+        "rating": { "type": "number", "description": "Rating out of 5" },
+        "comment": { "type": "string", "description": "Review comment" },
+        "sentiment": { "type": "string", "enum": ["positive", "negative", "neutral"], "description": "AI-analyzed sentiment" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the review was posted" }
+      },
+      "required": ["userId", "providerId", "rating"]
+    },
+    "Tracking": {
+      "title": "Live Tracking",
+      "description": "Real-time location tracking for providers on active bookings.",
+      "type": "object",
+      "properties": {
+        "bookingId": { "type": "string", "description": "ID of the booking" },
+        "providerId": { "type": "string", "description": "UID of the provider" },
+        "customerId": { "type": "string", "description": "UID of the customer" },
+        "providerName": { "type": "string", "description": "Name of the provider" },
+        "providerPhone": { "type": "string", "description": "Phone number of the provider" },
+        "lat": { "type": "number", "description": "Current latitude" },
+        "lng": { "type": "number", "description": "Current longitude" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last location update" }
+      },
+      "required": ["bookingId", "providerId", "customerId", "lat", "lng"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "User", "description": "User profile documents." },
+    "/providers/{providerId}": { "schema": "ServiceProvider", "description": "Service provider directory." },
+    "/bookings/{bookingId}": { "schema": "Booking", "description": "Service booking records." },
+    "/reviews/{reviewId}": { "schema": "Review", "description": "Provider review records." },
+    "/tracking/{bookingId}": { "schema": "Tracking", "description": "Live tracking data." }
+  }
+}

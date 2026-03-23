@@ -1,0 +1,5 @@
+{
+  "name": "HomeService Connect",
+  "description": "A comprehensive platform connecting households with professional service providers like electricians, maids, cooks, tutors, and more.",
+  "requestFramePermissions": ["geolocation"]
+}

@@ -1,0 +1,216 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (Firebase Auth UID)
+    // Fields:
+    //   - uid: string (required, immutable) - Firebase Auth UID
+    //   - displayName: string (optional) - User's full name
+    //   - email: string (optional, email format) - User's email
+    //   - phoneNumber: string (optional) - User's mobile number
+    //   - role: string (required, enum: ['customer', 'provider', 'admin']) - User's role
+    //   - location: map (optional) - {lat, lng, address}
+    //   - servicesNeeded: list (optional) - List of service categories
+    //   - createdAt: timestamp (required, immutable) - Account creation date
+    //
+    // Collection: providers
+    // Document ID: {providerId}
+    // Fields:
+    //   - uid: string (required, immutable) - Link to User UID
+    //   - name: string (required) - Provider's name
+    //   - phoneNumber: string (optional) - Provider's mobile number
+    //   - category: string (required) - Primary service category
+    //   - categories: list (optional) - All service categories provided
+    //   - skills: list (optional) - List of skills
+    //   - experienceLevel: string (optional, enum: ['Junior', 'Intermediate', 'Senior', 'Expert'])
+    //   - certifications: list (optional) - List of certifications
+    //   - pricePerHour: number (required, positive) - Hourly rate
+    //   - rating: number (optional, 0-5) - Average rating
+    //   - location: map (optional) - Geographic location {lat, lng}
+    //   - serviceAreaRadius: number (optional) - Service area in km
+    //   - availability: bool (optional) - Is currently available?
+    //   - description: string (optional) - Brief bio
+    //
+    // Collection: bookings
+    // Document ID: {bookingId}
+    // Fields:
+    //   - id: string (required, immutable) - Booking ID
+    //   - customerId: string (required, immutable) - UID of the customer
+    //   - customerName: string (optional) - Name of the customer
+    //   - customerPhone: string (optional) - Phone number of the customer
+    //   - providerId: string (required, immutable) - UID of the provider
+    //   - providerName: string (required) - Name of the provider
+    //   - providerPhone: string (optional) - Phone number of the provider
+    //   - category: string (required) - Service category
+    //   - status: string (required, enum: ['pending', 'confirmed', 'completed', 'cancelled']) - Booking status
+    //   - startTime: timestamp (required) - Scheduled start time
+    //   - endTime: timestamp (optional) - Scheduled end time
+    //   - totalPrice: number (required, positive) - Total price
+    //   - isTracking: bool (optional) - Is currently being tracked
+    //   - createdAt: timestamp (required, immutable) - When the booking was made
+    //
+    // Collection: reviews
+    // Document ID: {reviewId}
+    // Fields:
+    //   - id: string (required, immutable) - Review ID
+    //   - userId: string (required, immutable) - UID of the reviewer
+    //   - userName: string (required) - Name of the reviewer
+    //   - providerId: string (required, immutable) - ID of the provider being reviewed
+    //   - rating: number (required, 1-5) - Rating out of 5
+    //   - comment: string (optional) - Review comment
+    //   - createdAt: timestamp (required, immutable) - When the review was posted
+    //
+    // Collection: tracking
+    // Document ID: {bookingId}
+    // Fields:
+    //   - bookingId: string (required, immutable) - ID of the booking
+    //   - providerId: string (required, immutable) - UID of the provider
+    //   - customerId: string (required, immutable) - UID of the customer
+    //   - providerName: string (optional) - Name of the provider
+    //   - providerPhone: string (optional) - Phone number of the provider
+    //   - lat: number (required) - Current latitude
+    //   - lng: number (required) - Current longitude
+    //   - updatedAt: timestamp (optional) - Last location update
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "geet9873699811@gmail.com" && request.auth.token.email_verified == true) ||
+         (request.auth.token.email == "geet8377050111@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isProvider() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'provider';
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'role', 'createdAt']) &&
+             hasOnlyAllowedFields(['uid', 'displayName', 'email', 'phoneNumber', 'role', 'location', 'servicesNeeded', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.role in ['customer', 'provider', 'admin'] &&
+             (data.email == null || isValidEmail(data.email));
+    }
+
+    function isValidProvider(data) {
+      return hasRequiredFields(['uid', 'name', 'category', 'pricePerHour']) &&
+             hasOnlyAllowedFields(['id', 'uid', 'name', 'phoneNumber', 'category', 'categories', 'skills', 'experienceLevel', 'certifications', 'pricePerHour', 'rating', 'location', 'serviceAreaRadius', 'availability', 'description', 'responseTime', 'completionRate', 'isVerified', 'fraudScore']) &&
+             data.pricePerHour is number && data.pricePerHour > 0;
+    }
+
+    function isValidBooking(data) {
+      return hasRequiredFields(['customerId', 'providerId', 'status', 'startTime', 'totalPrice', 'createdAt']) &&
+             hasOnlyAllowedFields(['id', 'customerId', 'customerName', 'customerPhone', 'providerId', 'providerName', 'providerPhone', 'category', 'status', 'startTime', 'endTime', 'totalPrice', 'isTracking', 'routeInfo', 'createdAt']) &&
+             data.customerId == request.auth.uid &&
+             data.status in ['pending', 'confirmed', 'completed', 'cancelled'] &&
+             data.totalPrice is number && data.totalPrice > 0;
+    }
+
+    function isValidReview(data) {
+      return hasRequiredFields(['userId', 'providerId', 'rating', 'createdAt']) &&
+             hasOnlyAllowedFields(['id', 'userId', 'userName', 'providerId', 'rating', 'comment', 'sentiment', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.rating is number && data.rating >= 1 && data.rating <= 5;
+    }
+
+    function isValidTracking(data) {
+      return hasRequiredFields(['bookingId', 'providerId', 'customerId', 'lat', 'lng']) &&
+             hasOnlyAllowedFields(['bookingId', 'providerId', 'customerId', 'providerName', 'providerPhone', 'lat', 'lng', 'updatedAt']) &&
+             data.providerId == request.auth.uid &&
+             data.lat is number && data.lng is number;
+    }
+
+    // ===============================================================
+    // Match Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (request.resource.data.role in ['customer', 'provider'] || isAdmin());
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+    }
+
+    match /providers/{providerId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() || (isProvider() && request.resource.data.uid == request.auth.uid);
+      allow update: if isAdmin() || (isProvider() && resource.data.uid == request.auth.uid && isValidProvider(request.resource.data));
+      allow delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.customerId || request.auth.uid == resource.data.providerId || isAdmin());
+      allow list: if isAuthenticated() && (isAdmin() || request.query.limit <= 100);
+      allow create: if isAuthenticated() && isValidBooking(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.customerId && request.resource.data.status in ['cancelled'] && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
+        (request.auth.uid == resource.data.providerId && (
+          (request.resource.data.status in ['confirmed', 'completed', 'cancelled'] && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isTracking']))
+        )) ||
+        isAdmin()
+      );
+    }
+
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidReview(request.resource.data);
+      allow update: if isAuthenticated() && isOwner(resource.data.userId) && isValidReview(request.resource.data);
+      allow delete: if isAuthenticated() && (isOwner(resource.data.userId) || isAdmin());
+    }
+
+    match /subscriptions/{subscriptionId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /tracking/{bookingId} {
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.customerId ||
+        request.auth.uid == resource.data.providerId ||
+        isAdmin()
+      );
+      allow write: if isAuthenticated() &&
+        request.auth.uid == request.resource.data.providerId &&
+        isValidTracking(request.resource.data);
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
